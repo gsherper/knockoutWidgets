@@ -8,64 +8,83 @@ function seriesData(label,data,opts) {
 //Knockout custom binding - flot
 ko.bindingHandlers.flot = {
   init: function(element, valueAccessor, allBindingsAccessor, viewModel) {
-     $(window).resize(function() {
-    var observable = valueAccessor(); 
-    var oo = [];
-    var series = observable();
-    /*$.each(series, function(ii,vv) {
-      var ooo = [];
-      $.each(vv.data(), function(i,v) {
-        ooo.push([new Date(v[0]).getTime(),v[1]]);
+    var context = this;
+    $(window).resize(function() {
+      var observable = valueAccessor(); 
+      var oo = [];
+      var series = observable();
+      $.each(series, function(ii,vv) {
+        var ooo = [];
+        $.each(vv.data(), function(i,v) {
+          ooo.push([new Date(v[0]).getTime(),v[1]]);
+        });
+       var data = { data: ooo };
+       var graphData = {};
+       $.extend(true, graphData, data, vv.opts());
+         oo.push(graphData);
        });
-       oo.push(ooo);
+       context.plot = $.plot(element, oo,  viewModel.opt());
     });
-      $.plot(element, oo,  viewModel.opt());
-    });*/
-$.each(series, function(ii,vv) {
-      var ooo = [];
-      $.each(vv.data(), function(i,v) {
-        ooo.push([new Date(v[0]).getTime(),v[1]]);
-       });
-var data = { data: ooo };
-var graphData = {};
-$.extend(true, graphData, data, vv.opts());
-       oo.push(graphData);
-    });
-    console.log('updating...');
-      $.plot(element, oo,  viewModel.opt());
-});
   },
   update: function(element, valueAccessor, allBindingsAccessor, viewModel) {
     var observable = valueAccessor(); 
     var oo = [];
     var series = observable();
+    var opt = viewModel.opt();
+    var xaxisMode = '';
+    if (opt.xaxis) {
+      xaxisMode = opt.xaxis.mode;
+    }
     $.each(series, function(ii,vv) {
       var ooo = [];
-      $.each(vv.data(), function(i,v) {
-        ooo.push([new Date(v[0]).getTime(),v[1]]);
-       });
-var data = { data: ooo };
-var graphData = {};
-$.extend(true, graphData, data, vv.opts());
-       oo.push(graphData);
-    });
-    console.log('updating...');
-    $.plot($(element), oo, viewModel.opt());
+      if (xaxisMode ==  'time') {
+        var ooo = [];
+        $.each(vv.data(), function(i,v) {
+          ooo.push([new Date(v[0]).getTime(),v[1]]);
+        });
+        var data = { data: ooo };
+      } else {
+        var data = { data: vv.data() };
+      }
+
+      var graphData = {};
+      $.extend(true, graphData, data, vv.opts());
+        oo.push(graphData);
+      });
+      if (viewModel.opt().stream) {
+        if (!this.plot) {
+          this.plot = $.plot($(element), oo, viewModel.opt());
+        } else {
+          this.plot.setData(oo);
+          this.plot.draw();
+        }
+      } else {
+        this.plot = $.plot($(element), oo, viewModel.opt());
+      }
   }    
 };
 
-function FlotViewModel(data) {
+function FlotViewModel(data, options) {
   this.data = data;
   this.series = ko.observableArray([]);
-  this.opt = ko.observable({
-    xaxis: { 
-      mode: 'time',
-        tickFormatter: function (val, axis) {
-          var d = new Date(val);
-          return (d.getUTCMonth() + 1) +'/'+d.getUTCDate() + "/"  +String(d.getUTCFullYear()).substring(2);
-        } 
-    }
-  }); 
+  var defaults = {
+      xaxis: {
+        mode: 'time',
+          tickFormatter: function (val, axis) {
+            var d = new Date(val);
+            return (d.getUTCMonth() + 1) +'/'+d.getUTCDate() + "/"  +String(d.getUTCFullYear()).substring(2);
+          }
+      }
+  };
+  if (!options) {
+    this.opt = ko.observable(defaults);
+  } else {
+    this.opt = ko.observable(options);
+  }
+  this.streamUpdate = function(dat, label) {
+    this.series.pop();
+    this.series.push(new seriesData(label, dat));
+  }
   this.addSeries = function(dat) {
     this.series.push(new seriesData("Yahoo", dat));
   };
